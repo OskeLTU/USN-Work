@@ -11,7 +11,6 @@
 //server /////////////////////////////////////////////////////////////
 
 
-"std3fe23fe32f32e"
 
 int initialize_wsa() {
 	WSADATA wsaData{};
