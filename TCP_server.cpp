@@ -4,6 +4,8 @@
 #include <ws2tcpip.h>
 #include <csignal>
 #include <Windows.h>
+#include <fstream>
+#include <sstream>
 
 
 #pragma comment(lib, "ws2_32.lib")
@@ -129,25 +131,85 @@ bool is_client_connected(SOCKET client_socket) {
 
 void receive_the_message(SOCKET client_socket) {
 	char buffer[1024] = { 0 };
+
 	while (is_client_connected(client_socket)) {
-		
 		int message = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 		if (message > 0) {
-			std::cout << "received message: " << buffer << '\n';
 			buffer[message] = '\0';
+			std::cout << "Received message:\n" << buffer << '\n';
 
+			// Parse the HTTP request
+			std::istringstream requestStream(buffer);
+			std::string method, path, protocol;
+			requestStream >> method >> path >> protocol;
+
+			if (method == "GET") {
+				// Remove leading '/' from the path
+				if (path[0] == '/') path = path.substr(1);
+
+				// Open and read the file
+				std::ifstream file(path);
+				std::ostringstream responseStream;
+
+				if (file) {
+					// HTTP response header
+					responseStream << "HTTP/1.1 200 OK\r\n";
+					responseStream << "Content-Type: text/html\r\n"; // Adjust content type as needed
+					responseStream << "Connection: close\r\n\r\n";
+
+					// File content
+					responseStream << file.rdbuf();
+				}
+				else {
+					// File not found
+					responseStream << "HTTP/1.1 404 Not Found\r\n";
+					responseStream << "Connection: close\r\n\r\n";
+					responseStream << "<html><body><h1>404 Not Found</h1></body></html>";
+				}
+
+				// Send the response
+				std::string response = responseStream.str();
+				send(client_socket, response.c_str(), response.size(), 0);
+			}
+			else {
+				// Method not supported
+				std::string response = "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n";
+				send(client_socket, response.c_str(), response.size(), 0);
+			}
 		}
 		else if (message == 0) {
-			std::cout << "client disconnected" << '\n';
+			std::cout << "Client disconnected.\n";
 			break;
 		}
 		else {
-			std::cout << "error with network" << '\n';
+			std::cout << "Network error.\n";
 			break;
-		};	
+		}
 		memset(buffer, 0, 1023);
 	}
 }
+
+//void receive_the_message(SOCKET client_socket) {
+//	char buffer[1024] = { 0 };
+//	while (is_client_connected(client_socket)) {
+//		
+//		int message = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+//		if (message > 0) {
+//			std::cout << "received message: " << buffer << '\n';
+//			buffer[message] = '\0';
+//
+//		}
+//		else if (message == 0) {
+//			std::cout << "client disconnected" << '\n';
+//			break;
+//		}
+//		else {
+//			std::cout << "error with network" << '\n';
+//			break;
+//		};	
+//		memset(buffer, 0, 1023);
+//	}
+//}
 
 void sign_clean(int signal){
 	std::cout << "resived signal: " << signal << ", ending program." << '\n';
