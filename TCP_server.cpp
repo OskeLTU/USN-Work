@@ -6,6 +6,9 @@
 #include <Windows.h>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+
+
 
 
 #pragma comment(lib, "ws2_32.lib")
@@ -146,6 +149,10 @@ void receive_the_message(SOCKET client_socket) {
 			if (method == "GET") {
 				// Remove leading '/' from the path
 				if (path[0] == '/') path = path.substr(1);
+				std::cout << " requested file path: " << path << '\n';
+				if (path.empty() || path == "/") {
+					path = "index.html";
+				}
 
 				// Open and read the file
 				std::ifstream file(path);
@@ -243,6 +250,9 @@ sockaddr_in set_server_parameters() {
 
 
 int main() {
+
+	std::cout << "current directory: " << std::filesystem::current_path() << '\n';
+
 	std::signal(SIGINT, sign_clean);
 	std::signal(SIGTERM, sign_clean);
 
