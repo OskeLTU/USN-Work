@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Webserver - Home</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Welcome to the Test Webserver</h1>
+  </header>
+
+  <nav>
+    <a href="about.html">About</a>
+  </nav>
+
+  <section>
+    <h2>Images</h2>
+    <p>Local Image:</p>
+    <img src="nett_sikkerhet.webp" alt="Local Image" width="200">
+    <p>External Image:</p>
+    <img  width="400" height="150"src="https://www.usn.no/getfile.php/13820111-1716369835/usn.no/om_USN/campusene/Kongsberg/Campus_Kongsberg_USN_05442_1920_Foto_Ingvild_Stokka.jpg" alt="External Image">
+  </section>
+
+  <section>
+    <h2>Simple JavaScript Test</h2>
+    <button id="js-button">Click me!</button>
+    <p id="js-output">JavaScript not executed yet.</p>
+  </section>
+
+  <section>
+    <h2>Test Form with POST</h2>
+    <form action="post_result" method="POST">
+      <label for="post_username">Username:</label>
+      <input type="text" id="post_username" name="username" required>
+      <br>
+      <label for="post_email">Email:</label>
+      <input type="email" id="post_email" name="email" required>
+      <br>
+      <button type="submit">Submit (POST)</button>
+    </form>
+  </section>
+
+  <footer>
+    <p>Test Webserver Footer</p>
+  </footer>
+</body>
+</html>
