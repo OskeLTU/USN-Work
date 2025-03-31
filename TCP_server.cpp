@@ -196,27 +196,6 @@ void receive_the_message(SOCKET client_socket) {
 	}
 }
 
-//void receive_the_message(SOCKET client_socket) {
-//	char buffer[1024] = { 0 };
-//	while (is_client_connected(client_socket)) {
-//		
-//		int message = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-//		if (message > 0) {
-//			std::cout << "received message: " << buffer << '\n';
-//			buffer[message] = '\0';
-//
-//		}
-//		else if (message == 0) {
-//			std::cout << "client disconnected" << '\n';
-//			break;
-//		}
-//		else {
-//			std::cout << "error with network" << '\n';
-//			break;
-//		};	
-//		memset(buffer, 0, 1023);
-//	}
-//}
 
 void sign_clean(int signal){
 	std::cout << "resived signal: " << signal << ", ending program." << '\n';
@@ -227,13 +206,21 @@ void sign_clean(int signal){
 sockaddr_in set_server_parameters() {
 	sockaddr_in server{};
 	std::string ip;
-	int port;
-
+	int port, choice;
+	
+	if (choice == 1) {
+		ip = "192.29.74.47";
+		port = 8080;
+	}
+	if (choice == 2) {
 	std::cout << "Enter ip for server: ";
 	std::cin >> ip;
 
 	std::cout << "Enter Port number: ";
 	std::cin >> port;
+	}
+
+	
 
 	server.sin_family = AF_INET;
 	server.sin_port = htons(port);
