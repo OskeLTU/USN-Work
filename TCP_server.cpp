@@ -53,6 +53,9 @@ std::string content_type(const std::string& filePath) {
     else if (filePath.ends_with(".webp")) {
         return "image/webp";
     }
+	else if (filePath.ends_with(".png")) {
+		return "image/png";
+	}
     else {
         return "application/octet-stream"; // Default for unknown types
     }
@@ -113,7 +116,7 @@ void recive_client(SOCKET clientSocket) {
 
             if (path[0] == '/') path = path.substr(1); 
             if (path.empty()) path = "index.html";// directs to index.html if nothing is spesified after port or a "/" is left
-
+            if (!path.empty()) path = "egen_fil.png";
             response_body = readFile(path);
             if (response_body.empty()) {
                 response_body = "<html><h1>404 - File Not Found</h1></html>";
