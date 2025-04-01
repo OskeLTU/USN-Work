@@ -7,10 +7,22 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
-#include <unordered_map>
 #include <sstream>
 
 #pragma comment(lib, "ws2_32.lib")
+
+
+int Error_reurner() {
+    int Error_code = WSAGetLastError();
+    char* Error_Message;
+
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        0, Error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&Error_Message, 0, 0);
+
+    std::cout << Error_Message << '\n';
+
+    return Error_code;
+}
 
 std::string readFile(const std::string& filePath) {
 
@@ -20,12 +32,11 @@ std::string readFile(const std::string& filePath) {
     if (!file.is_open()) {
         
         std::cout << "Failed to open file: " << std::filesystem::absolute(filePath) << std::endl;
-        return ""; 
+        return ""; //show where the atmept to pene the file was made, and that it failed.
     }
     return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }
 
-// Function to determine content type based on file extension
 std::string content_type(const std::string& filePath) {
     if (filePath.ends_with(".html")) {
         return "text/html";
@@ -48,88 +59,6 @@ std::string content_type(const std::string& filePath) {
 
 }
 
- //Function to handle HTTP requests
-
-//void recive_client(SOCKET clientSocket) {
-//    const int BUFFER_SIZE = 10240; // Buffer size for incoming data
-//    char buffer[BUFFER_SIZE] = { 0 };
-//
-//    int recive_message = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-//    if (recive_message > 0) {
-//        buffer[recive_message] = '\0';
-//
-//        // Parse the request
-//        std::istringstream requestStream(buffer);
-//        std::string method, path, protocol;
-//        requestStream >> method >> path >> protocol;
-//
-//        std::string responseHeader, responseBody;
-//        if (method == "GET") {
-//            // Remove leading '/' from the path
-//            if (path[0] == '/') path = path.substr(1);
-//            if (path.empty()) path = "index.html"; // Default to "index.html"
-//
-//            responseBody = readFile(path); // Call readFile function
-//            if (responseBody.empty()) {
-//                // File not found
-//                responseBody = "<html><h1>404 - File not found</h1></html>";
-//                responseHeader = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " +
-//                    std::to_string(responseBody.size()) + "\r\n\r\n";
-//            }
-//            else {
-//                // File found
-//                std::string file_type = content_type(path);
-//                responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + file_type + "\r\nContent-Length: " +
-//                    std::to_string(responseBody.size()) + "\r\n\r\n";
-//            }
-//        }
-//        else if (method == "POST") {
-//            // Parse headers
-//            std::unordered_map<std::string, std::string> headers;
-//            std::string line;
-//            while (std::getline(requestStream, line) && line != "\r") {
-//                size_t colon = line.find(':');
-//                if (colon != std::string::npos) {
-//                    std::string key = line.substr(0, colon);
-//                    std::string value = line.substr(colon + 2); // Skip ": "
-//                    headers[key] = value.erase(value.find_last_not_of("\r") + 1);
-//                }
-//            }
-//
-//            // Get POST data
-//            size_t contentLength = 0;
-//            if (headers.count("Content-Length")) {
-//                contentLength = std::stoul(headers["Content-Length"]);
-//            }
-//
-//            std::string body;
-//            size_t headerEnd = std::string(buffer).find("\r\n\r\n");
-//            if (headerEnd != std::string::npos) {
-//                body = std::string(buffer).substr(headerEnd + 4, contentLength);
-//            }
-//
-//            // Process POST data (example: echo back)
-//            responseBody = "Received POST data:\n" + body;
-//            responseHeader = "HTTP/1.1 200 OK\r\n"
-//                "Content-Type: text/plain\r\n"
-//                "Content-Length: " + std::to_string(responseBody.size()) + "\r\n\r\n";
-//        }
-//        else {
-//            // Method not allowed
-//            responseBody = "<html><h1>405 - Method Not Allowed</h1></html>";
-//            responseHeader = "HTTP/1.1 405 Method Not Allowed\r\n"
-//                "Content-Type: text/html\r\n"
-//                "Content-Length: " + std::to_string(responseBody.size()) + "\r\n\r\n";
-//        }
-//
-//        // Send response
-//        std::string response = responseHeader + responseBody;
-//        send(clientSocket, response.c_str(), response.size(), 0);
-//    }
-//    closesocket(clientSocket);
-//}
-
-
 void recive_client(SOCKET clientSocket) {
     const int BUFFER_SIZE = 10240; // Buffer size for incoming data
     char buffer[BUFFER_SIZE] = { 0 };
@@ -138,109 +67,79 @@ void recive_client(SOCKET clientSocket) {
     if (recive_message > 0) {
         buffer[recive_message] = '\0';
 
-        // Parse the HTTP request
-        std::istringstream requestStream(buffer);
+        std::istringstream request_stream_from_website(buffer);
         std::string method, path, protocol;
-        requestStream >> method >> path >> protocol;
+        request_stream_from_website >> method >> path >> protocol; 
 
-        // Log the received request path
-        std::cout << "Received request path: " << path << std::endl;
+        
+        std::cout << "Received request path: " << path << std::endl;//for troubleshooting
 
-        std::string responseHeader, responseBody;
+        std::string response_header, response_body;
 
         if (method == "POST") {
-            // Extract headers and calculate body offset
-            size_t headerEnd = std::string(buffer).find("\r\n\r\n");
+         
+            size_t header_end = std::string(buffer).find("\r\n\r\n");
             std::string body;
-            if (headerEnd != std::string::npos) {
-                headerEnd += 4; // Skip past "\r\n\r\n"
+            if (header_end != std::string::npos) {
+                header_end += 4; // 4 is addded to hopp over the header to the body of the file
 
-                // Extract Content-Length header
-                std::string rawHeaders(buffer, headerEnd);
-                size_t contentLengthPos = rawHeaders.find("Content-Length: ");
+                std::string header_from_client(buffer, header_end);
+                size_t content_length_pos = header_from_client.find("Content-Length: ");
                 size_t contentLength = 0;
-                if (contentLengthPos != std::string::npos) {
-                    contentLengthPos += 16; // Length of "Content-Length: "
-                    size_t contentLengthEnd = rawHeaders.find("\r\n", contentLengthPos);
-                    contentLength = std::stoul(rawHeaders.substr(contentLengthPos, contentLengthEnd - contentLengthPos));
+                if (content_length_pos != std::string::npos) {
+					content_length_pos += 16; //16 is added here to hopp over the characters in the word "Content-Length: "
+                    size_t contentLengthEnd = header_from_client.find("\r\n", content_length_pos);
+                    contentLength = std::stoul(header_from_client.substr(content_length_pos, contentLengthEnd - content_length_pos));
                 }
 
                 // Extract the body based on Content-Length
-                if (contentLength > 0) {
-                    body = std::string(buffer).substr(headerEnd, contentLength);
-                }
+                body = std::string(buffer).substr(header_end, contentLength);
             }
 
-            // Log the extracted body
-            std::cout << "Extracted POST body: " << body << std::endl;
+            std::string redirectUrl = "/result.html?" + body;//save the post in the url
 
-            // Redirect to result.html with the POST data as query parameters
-            std::string redirectUrl = "/result.html?" + body;
-
-            // Log the redirect URL
-            std::cout << "Redirecting to: " << redirectUrl << std::endl;
-
-            responseHeader = "HTTP/1.1 302 Found\r\n"
+            response_header = "HTTP/1.1 302 Found\r\n"
                 "Location: " + redirectUrl + "\r\n"
                 "Content-Length: 0\r\n\r\n";
-        
-
-        
-
         }
         else if (method == "GET") {
-            // Handle GET requests
+            
 
-            // Strip query parameters from the path
-            size_t queryPos = path.find('?');
+            
+            size_t queryPos = path.find('?');//searches for a ? and then uses that what is before it as the path
             if (queryPos != std::string::npos) {
                 path = path.substr(0, queryPos); // Remove everything after "?"
             }
 
-            if (path[0] == '/') path = path.substr(1); // Remove leading '/'
-            if (path.empty()) path = "index.html";     // Default to index.html
+            if (path[0] == '/') path = path.substr(1); 
+            if (path.empty()) path = "index.html";// directs to index.html if nothing is spesified after port or a "/" is left
 
-            responseBody = readFile(path);
-            if (responseBody.empty()) {
-                responseBody = "<html><h1>404 - File Not Found</h1></html>";
-                responseHeader = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " +
-                    std::to_string(responseBody.size()) + "\r\n\r\n";
+            response_body = readFile(path);
+            if (response_body.empty()) {
+                response_body = "<html><h1>404 - File Not Found</h1></html>";
+                response_header = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " +
+                    std::to_string(response_body.size()) + "\r\n\r\n";
             }
             else {
                 std::string file_type = content_type(path);
-                responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + file_type + "\r\nContent-Length: " +
-                    std::to_string(responseBody.size()) + "\r\n\r\n";
+                response_header = "HTTP/1.1 200 OK\r\nContent-Type: " + file_type + "\r\nContent-Length: " +
+                    std::to_string(response_body.size()) + "\r\n\r\n";
             }
         }
         else {
-            // Unsupported HTTP method
-            responseBody = "<html><h1>405 - Method Not Allowed</h1></html>";
-            responseHeader = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/html\r\nContent-Length: " +
-                std::to_string(responseBody.size()) + "\r\n\r\n";
+			std::cout << "error occured. Error: " << Error_reurner() << '\n';
+			WSACleanup();
+			exit(1);
         }
 
         // Send response back to the client
-        std::string response = responseHeader + responseBody;
+        std::string response = response_header + response_body;
         send(clientSocket, response.c_str(), response.size(), 0);
     }
     closesocket(clientSocket);
 }
 
 
-
-
-
-int Error_reurner() {
-    int Error_code = WSAGetLastError();
-    char* Error_Message;
-
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        0, Error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&Error_Message, 0, 0);
-
-    std::cout << Error_Message << '\n';
-
-    return Error_code;
-}
 
 void sign_clean(int signal) {
     std::cout << "resived signal: " << signal << ", ending program." << '\n';
@@ -266,12 +165,12 @@ int main() {
         return 1;
     }
 
-    const char* ip = "172.29.77.71"; // ip is hard coded here
-    int port = 8080; //port is hard coded here
+    const char* ip = "10.0.0.22"; 
+    int port = 8080; 
 
     sockaddr_in serverAddr = { 0 };
     serverAddr.sin_family = AF_INET;
-    if(inet_pton(serverAddr.sin_family, "172.29.77.71", &serverAddr.sin_addr) != 1) {
+    if(inet_pton(serverAddr.sin_family, "10.0.0.22", &serverAddr.sin_addr) != 1) {
         std::cout << "Invalid Ip address, Error: " << Error_reurner() << '\n';
     };
 
@@ -293,7 +192,7 @@ int main() {
 
     std::cout << "listening with the current ip: " << ip <<  " and port: " << port << '\n';
 
-    // Accept and handle client connections
+   
     while (true) {
         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
         if (clientSocket != INVALID_SOCKET) {
@@ -301,7 +200,7 @@ int main() {
         }
     }
 
-    // Cleanup
+    
     closesocket(serverSocket);
     WSACleanup();
 
