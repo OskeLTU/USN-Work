@@ -1,216 +1,208 @@
-//server
+
 #include <iostream>
 #include <WinSock2.h>
 #include <ws2tcpip.h>
 #include <csignal>
 #include <Windows.h>
-
+#include <fstream>
+#include <filesystem>
+#include <string>
+#include <sstream>
 
 #pragma comment(lib, "ws2_32.lib")
 
-//server /////////////////////////////////////////////////////////////
 
+int Error_reurner() {
+    int Error_code = WSAGetLastError();
+    char* Error_Message;
 
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        0, Error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&Error_Message, 0, 0);
 
-int initialize_wsa() {
-	WSADATA wsaData{};
+    std::cout << Error_Message << '\n';
 
-	//initialazation part start->
-	const int Start_up_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (Start_up_result == 0) {
-		std::cout << "initialization succsesfull!" << '\n';
-		return 0;
-	}
-	else {
-		std::cout << "ERROR" << '\n';
-		return 1;
-	}
-	//->initialazation part end
-};
-
-int clean_up() {
-	//cleanup part start ->
-
-	const int Cleanup_result = WSACleanup();
-	if (Cleanup_result == 0) {
-		std::cout << "cleanup was succsesfull!" << '\n';
-		return 0;
-	}
-	else {
-		std::cout << "ERROR with cleanup" << '\n';
-		return 1;
-	}
-
-	//->cleanup part end 
+    return Error_code;
 }
 
-SOCKET create_socket(int domain, int type, int protocol) {
+std::string readFile(const std::string& filePath) {
 
-	SOCKET made_socket = socket(domain, type, protocol);
-	if (made_socket == INVALID_SOCKET) {
-		std::cout << "error with socket creation" << '\n';
-		return INVALID_SOCKET;
-	}
-	else {
-		std::cout << "socket " << made_socket << "  created" << '\n';
-		return made_socket;
-	}
-};
+    std::cout << "Attempting to open file: " << std::filesystem::absolute(filePath) << std::endl;
 
-int close_socket(SOCKET n) {
-	//closing sockets start
-
-	int check = closesocket(n);
-	if (check == 0) {
-		std::cout << n << "  closed" << '\n';
-	}
-	else {
-		std::cout << "ERROR with closing" << '\n';
-		return 1;
-	}
-
-	//closing sockets end
+    std::ifstream file(filePath, std::ios::binary); 
+    if (!file.is_open()) {
+        
+        std::cout << "Failed to open file: " << std::filesystem::absolute(filePath) << std::endl;
+        return ""; //show where the atmept to pene the file was made, and that it failed.
+    }
+    return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }
 
-int bind_socket(SOCKET n, sockaddr_in server) {
-	int error_handling = bind(n, (SOCKADDR*)&server, sizeof(server));
-	if (error_handling == 0) {
-		std::cout << "socket " << n << " bound" << '\n';
-	}
-	else {
-		std::cout << "error with binding" << '\n';
-		return 1;
-	};
+std::string content_type(const std::string& filePath) {
+    if (filePath.ends_with(".html")) {
+        return "text/html";
+    }
+    else if (filePath.ends_with(".css")) {
+        return "text/css";
+    }
+    else if (filePath.ends_with(".js")) {
+        return "application/javascript";
+    }
+    else if (filePath.ends_with(".jpg")) {
+        return "image/jpeg";
+    }
+    else if (filePath.ends_with(".webp")) {
+        return "image/webp";
+    }
+    else {
+        return "application/octet-stream"; // Default for unknown types
+    }
+
 }
 
-int listen_func(SOCKET n, int backlog) {
-	int check = listen(n, backlog);
-	if (check == 0) {
-		std::cout << "listen succsesful" << '\n';
-		std::cout << "waiting for connection... " << '\n';
-	}
-	else {
-		std::cout << "ERROR with listening" << '\n';
-		return 1;
-	};
+void recive_client(SOCKET clientSocket) {
+    const int BUFFER_SIZE = 10240; // Buffer size for incoming data
+    char buffer[BUFFER_SIZE] = { 0 };
+
+    int recive_message = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (recive_message > 0) {
+        buffer[recive_message] = '\0';
+
+        std::istringstream request_stream_from_website(buffer);
+        std::string method, path, protocol;
+        request_stream_from_website >> method >> path >> protocol; 
+
+        
+        std::cout << "Received request path: " << path << std::endl;//for troubleshooting
+
+        std::string response_header, response_body;
+
+        if (method == "POST") {
+         
+            size_t header_end = std::string(buffer).find("\r\n\r\n");
+            std::string body;
+            if (header_end != std::string::npos) {
+                header_end += 4; // 4 is addded to hopp over the header to the body of the file
+
+                std::string header_from_client(buffer, header_end);
+                size_t content_length_pos = header_from_client.find("Content-Length: ");
+                size_t contentLength = 0;
+                if (content_length_pos != std::string::npos) {
+					content_length_pos += 16; //16 is added here to hopp over the characters in the word "Content-Length: "
+                    size_t contentLengthEnd = header_from_client.find("\r\n", content_length_pos);
+                    contentLength = std::stoul(header_from_client.substr(content_length_pos, contentLengthEnd - content_length_pos));
+                }
+
+                // Extract the body based on Content-Length
+                body = std::string(buffer).substr(header_end, contentLength);
+            }
+
+            std::string redirectUrl = "/result.html?" + body;//save the post in the url
+
+            response_header = "HTTP/1.1 302 Found\r\n"
+                "Location: " + redirectUrl + "\r\n"
+                "Content-Length: 0\r\n\r\n";
+        }
+        else if (method == "GET") {
+            
+
+            
+            size_t queryPos = path.find('?');//searches for a ? and then uses that what is before it as the path
+            if (queryPos != std::string::npos) {
+                path = path.substr(0, queryPos); // Remove everything after "?"
+            }
+
+            if (path[0] == '/') path = path.substr(1); 
+            if (path.empty()) path = "index.html";// directs to index.html if nothing is spesified after port or a "/" is left
+
+            response_body = readFile(path);
+            if (response_body.empty()) {
+                response_body = "<html><h1>404 - File Not Found</h1></html>";
+                response_header = "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-Length: " +
+                    std::to_string(response_body.size()) + "\r\n\r\n";
+            }
+            else {
+                std::string file_type = content_type(path);
+                response_header = "HTTP/1.1 200 OK\r\nContent-Type: " + file_type + "\r\nContent-Length: " +
+                    std::to_string(response_body.size()) + "\r\n\r\n";
+            }
+        }
+        else {
+			std::cout << "error occured. Error: " << Error_reurner() << '\n';
+			WSACleanup();
+			exit(1);
+        }
+
+        // Send response back to the client
+        std::string response = response_header + response_body;
+        send(clientSocket, response.c_str(), response.size(), 0);
+    }
+    closesocket(clientSocket);
 }
 
-SOCKET accept_func(SOCKET n, sockaddr* addr, int* addrlen) {
-	SOCKET socket_obj;
-	socket_obj = accept(n, addr, addrlen);
-	if (socket_obj == INVALID_SOCKET) {
-		std::cout << "accept failiure" << '\n';
-		return INVALID_SOCKET;
-	}
-	else {
-		std::cout << "accept succesfull" << '\n';
 
-		return socket_obj;
-	}
-	
+
+void sign_clean(int signal) {
+    std::cout << "resived signal: " << signal << ", ending program." << '\n';
+    WSACleanup();
+    exit(1);
 }
-
-bool is_client_connected(SOCKET client_socket) {
-	char buffer;
-	int result = recv(client_socket, &buffer, 1, MSG_PEEK);
-
-	if (result > 0) {
-		return true;  // Client is still connected
-	}
-	else if (result == 0) {
-		std::cout << "Client disconnected gracefully.\n";
-		return false;  // Client disconnected gracefully
-	}
-	else {
-		std::cout << "Network error: " << WSAGetLastError() << '\n';
-		return false;  // Network error or wrong error
-	}
-}
-
-void receive_the_message(SOCKET client_socket) {
-	char buffer[1024] = { 0 };
-	while (is_client_connected(client_socket)) {
-		
-		int message = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-		if (message > 0) {
-			std::cout << "received message: " << buffer << '\n';
-			buffer[message] = '\0';
-
-		}
-		else if (message == 0) {
-			std::cout << "client disconnected" << '\n';
-			break;
-		}
-		else {
-			std::cout << "error with network" << '\n';
-			break;
-		};	
-		memset(buffer, 0, 1023);
-	}
-}
-
-void sign_clean(int signal){
-	std::cout << "resived signal: " << signal << ", ending program." << '\n';
-	clean_up();
-	exit(1);
-}
-
-sockaddr_in set_server_parameters() {
-	sockaddr_in server{};
-	std::string ip;
-	int port;
-
-	std::cout << "Enter ip for server: ";
-	std::cin >> ip;
-
-	std::cout << "Enter Port number: ";
-	std::cin >> port;
-
-	server.sin_family = AF_INET;
-	server.sin_port = htons(port);
-
-	if (inet_pton(server.sin_family, ip.c_str(), &server.sin_addr) <= 0) {
-		std::cout << "invalid IP address: " << ip << '\n';
-		exit(1);
-	}
-
-	return server;
-}
-
-//server////////////////////////////////////////////////////////////
-
 
 int main() {
-	std::signal(SIGINT, sign_clean);
-	std::signal(SIGTERM, sign_clean);
+    std::signal(SIGINT, sign_clean);
+    std::signal(SIGTERM, sign_clean);
 
-	SetConsoleOutputCP(CP_UTF8);
-	
+    WSADATA wsaData;
 
-	sockaddr_in server = set_server_parameters();
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cout << "failed to initialize Winsock. Error: " << Error_reurner() << '\n';
+        return 1;
+    };
 
-	initialize_wsa();
+    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == INVALID_SOCKET) {
+        std::cout << "Failed to create socket. Error: " << Error_reurner() << '\n';
+        WSACleanup();
+        return 1;
+    }
 
-	SOCKET server_1 = create_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    const char* ip = "10.0.0.22"; 
+    int port = 8080; 
 
-	bind_socket(server_1, server);
+    sockaddr_in serverAddr = { 0 };
+    serverAddr.sin_family = AF_INET;
+    if(inet_pton(serverAddr.sin_family, "10.0.0.22", &serverAddr.sin_addr) != 1) {
+        std::cout << "Invalid Ip address, Error: " << Error_reurner() << '\n';
+    };
 
-	listen_func(server_1, 10);
+    serverAddr.sin_port = htons(8080); 
 
-	SOCKET client_socket = accept_func(server_1, 0, 0);
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cout << "Failed to bind socket. Error: " << Error_reurner() << '\n';
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
 
-	receive_the_message(client_socket);
-	
-	
-	closesocket(server_1);
-	clean_up();
+    if (listen(serverSocket, 10) == SOCKET_ERROR) {
+        std::cout << "Failed to listen on socket. Error: " << Error_reurner() << '\n';
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
 
+    std::cout << "listening with the current ip: " << ip <<  " and port: " << port << '\n';
 
+   
+    while (true) {
+        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket != INVALID_SOCKET) {
+            recive_client(clientSocket);
+        }
+    }
 
-	return 0;
+    
+    closesocket(serverSocket);
+    WSACleanup();
+
+    return 0;
 }
-
-
-
-
-
