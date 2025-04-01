@@ -1,6 +1,3 @@
-
-
-
 #include <iostream>
 #include <WinSock2.h>
 #include <ws2tcpip.h>
@@ -9,6 +6,8 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
+#include <unordered_map>
+#include <sstream>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -48,7 +47,8 @@ std::string content_type(const std::string& filePath) {
 
 }
 
-// Function to handle HTTP requests
+ //Function to handle HTTP requests
+
 void recive_client(SOCKET clientSocket) {
     const int BUFFER_SIZE = 10240; // Buffer size for incoming data
     char buffer[BUFFER_SIZE] = { 0 };
@@ -97,6 +97,11 @@ void recive_client(SOCKET clientSocket) {
     closesocket(clientSocket); 
 }
 
+
+
+
+
+
 int Error_reurner() {
     int Error_code = WSAGetLastError();
     char* Error_Message;
@@ -141,8 +146,8 @@ int main() {
     if(inet_pton(serverAddr.sin_family, "172.29.77.71", &serverAddr.sin_addr) != 1) {
         std::cout << "Invalid Ip address, Error: " << Error_reurner() << '\n';
     };
-    serverAddr.sin_port = htons(8080); 
 
+    serverAddr.sin_port = htons(8080); 
 
     if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         std::cout << "Failed to bind socket. Error: " << Error_reurner() << '\n';
