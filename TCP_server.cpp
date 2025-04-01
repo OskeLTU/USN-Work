@@ -1,6 +1,6 @@
 
 
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
+
 #include <iostream>
 #include <WinSock2.h>
 #include <ws2tcpip.h>
@@ -12,23 +12,22 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-// Function to read the contents of a file
 std::string readFile(const std::string& filePath) {
-    // Log the full path being accessed
+
     std::cout << "Attempting to open file: " << std::filesystem::absolute(filePath) << std::endl;
 
-    std::ifstream file(filePath, std::ios::binary); // Open in binary mode for non-text files
+    std::ifstream file(filePath, std::ios::binary); 
     if (!file.is_open()) {
-        // Log an error if the file cannot be opened
-        std::cerr << "Failed to open file: " << std::filesystem::absolute(filePath) << std::endl;
-        return ""; // Return empty string to indicate failure
+        
+        std::cout << "Failed to open file: " << std::filesystem::absolute(filePath) << std::endl;
+        return ""; 
     }
     return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }
 
 // Function to determine content type based on file extension
-std::string getContentType(const std::string& filePath) {
-    if (filePath.ends_with(".html") || filePath.ends_with(".htm")) {
+std::string content_type(const std::string& filePath) {
+    if (filePath.ends_with(".html")) {
         return "text/html";
     }
     else if (filePath.ends_with(".css")) {
@@ -37,31 +36,26 @@ std::string getContentType(const std::string& filePath) {
     else if (filePath.ends_with(".js")) {
         return "application/javascript";
     }
-    else if (filePath.ends_with(".jpg") || filePath.ends_with(".jpeg")) {
+    else if (filePath.ends_with(".jpg")) {
         return "image/jpeg";
     }
-    else if (filePath.ends_with(".png")) {
-        return "image/png";
-    }
-    else if (filePath.ends_with(".gif")) {
-        return "image/gif";
-    }
-    else if (filePath.ends_with(".ico")) {
-        return "image/x-icon";
+    else if (filePath.ends_with(".webp")) {
+        return "image/webp";
     }
     else {
         return "application/octet-stream"; // Default for unknown types
     }
+
 }
 
 // Function to handle HTTP requests
-void handleClientRequest(SOCKET clientSocket) {
+void recive_client(SOCKET clientSocket) {
     const int BUFFER_SIZE = 10240; // Buffer size for incoming data
     char buffer[BUFFER_SIZE] = { 0 };
 
-    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-    if (bytesReceived > 0) {
-        buffer[bytesReceived] = '\0';
+    int recive_message = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+    if (recive_message > 0) {
+        buffer[recive_message] = '\0';
 
         // Parse the request
         std::istringstream requestStream(buffer);
@@ -83,8 +77,8 @@ void handleClientRequest(SOCKET clientSocket) {
             }
             else {
                 // File found
-                std::string contentType = getContentType(path);
-                responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " +
+                std::string file_type = content_type(path);
+                responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + file_type + "\r\nContent-Length: " +
                     std::to_string(responseBody.size()) + "\r\n\r\n";
             }
         }
@@ -100,32 +94,77 @@ void handleClientRequest(SOCKET clientSocket) {
         send(clientSocket, response.c_str(), response.size(), 0);
     }
 
-    closesocket(clientSocket); // Close the client socket
+    closesocket(clientSocket); 
+}
+
+int Error_reurner() {
+    int Error_code = WSAGetLastError();
+    char* Error_Message;
+
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        0, Error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&Error_Message, 0, 0);
+
+    std::cout << Error_Message << '\n';
+
+    return Error_code;
+}
+
+void sign_clean(int signal) {
+    std::cout << "resived signal: " << signal << ", ending program." << '\n';
+    WSACleanup();
+    exit(1);
 }
 
 int main() {
-    // Initialize Winsock
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
+    std::signal(SIGINT, sign_clean);
+    std::signal(SIGTERM, sign_clean);
 
-    // Create and bind the server socket
+    WSADATA wsaData;
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cout << "failed to initialize Winsock. Error: " << Error_reurner() << '\n';
+        return 1;
+    };
+
     SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (serverSocket == INVALID_SOCKET) {
+        std::cout << "Failed to create socket. Error: " << Error_reurner() << '\n';
+        WSACleanup();
+        return 1;
+    }
+
+    const char* ip = "172.29.77.71"; // ip is hard coded here
+    int port = 8080; //port is hard coded here
+
     sockaddr_in serverAddr = { 0 };
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("10.0.0.22"); // Update with your IP
-    serverAddr.sin_port = htons(8080);                  // Update with your desired port
-    bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr));
+    if(inet_pton(serverAddr.sin_family, "172.29.77.71", &serverAddr.sin_addr) != 1) {
+        std::cout << "Invalid Ip address, Error: " << Error_reurner() << '\n';
+    };
+    serverAddr.sin_port = htons(8080); 
 
-    // Listen for connections
-    listen(serverSocket, 10);
 
-    std::cout << "Server is listening on port 8080..." << std::endl;
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cout << "Failed to bind socket. Error: " << Error_reurner() << '\n';
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    if (listen(serverSocket, 10) == SOCKET_ERROR) {
+        std::cout << "Failed to listen on socket. Error: " << Error_reurner() << '\n';
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    std::cout << "listening with the current ip: " << ip <<  " and port: " << port << '\n';
 
     // Accept and handle client connections
     while (true) {
         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
         if (clientSocket != INVALID_SOCKET) {
-            handleClientRequest(clientSocket);
+            recive_client(clientSocket);
         }
     }
 
