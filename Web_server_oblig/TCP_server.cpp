@@ -116,7 +116,7 @@ void recive_client(SOCKET clientSocket) {
 
             if (path[0] == '/') path = path.substr(1); 
             if (path.empty()) path = "index.html";// directs to index.html if nothing is spesified after port or a "/" is left
-            /*if (!path.empty()) path = "egen_fil.png";*/
+            if (path[0] == '/egen_fil.html') path = "egen_fil.html";*/
             response_body = readFile(path);
             if (response_body.empty()) {
                 response_body = "<html><h1>404 - File Not Found</h1></html>";
