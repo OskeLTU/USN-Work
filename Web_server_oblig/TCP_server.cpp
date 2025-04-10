@@ -91,8 +91,8 @@ void recive_client(SOCKET clientSocket) {
                 size_t contentLength = 0;
                 if (content_length_pos != std::string::npos) {
 					content_length_pos += 16; //16 is added here to hopp over the characters in the word "Content-Length: "
-                    size_t contentLengthEnd = header_from_client.find("\r\n", content_length_pos);
-                    contentLength = std::stoul(header_from_client.substr(content_length_pos, contentLengthEnd - content_length_pos));
+                    size_t content_length_end = header_from_client.find("\r\n", content_length_pos);
+                    contentLength = std::stoul(header_from_client.substr(content_length_pos, content_length_end - content_length_pos));
                 }
 
                 // Extract the body based on Content-Length
@@ -116,11 +116,6 @@ void recive_client(SOCKET clientSocket) {
 
             if (path[0] == '/') path = path.substr(1); 
             if (path.empty()) path = "index.html";// directs to index.html if nothing is spesified after port or a "/" is left
-<<<<<<< Updated upstream
-            /*if (!path.empty()) path = "egen_fil.png";*/
-=======
-            else if (!path.empty()) path = "egen_fil.png";
->>>>>>> Stashed changes
             response_body = readFile(path);
             if (response_body.empty()) {
                 response_body = "<html><h1>404 - File Not Found</h1></html>";
@@ -172,12 +167,12 @@ int main() {
         return 1;
     }
 
-    const char* ip = "10.0.0.22"; 
+    const char* ip = "172.29.69.52"; 
     int port = 8080; 
 
     sockaddr_in serverAddr = { 0 };
     serverAddr.sin_family = AF_INET;
-    if(inet_pton(serverAddr.sin_family, "10.0.0.22", &serverAddr.sin_addr) != 1) {
+    if(inet_pton(serverAddr.sin_family, "172.29.69.52", &serverAddr.sin_addr) != 1) {
         std::cout << "Invalid Ip address, Error: " << Error_reurner() << '\n';
     };
 
