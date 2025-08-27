@@ -1,0 +1,247 @@
+//server
+#include <iostream>
+#include <WinSock2.h>
+#include <ws2tcpip.h>
+#include <csignal>
+#include <Windows.h>
+
+
+#pragma comment(lib, "ws2_32.lib")
+
+//server /////////////////////////////////////////////////////////////
+
+int Error_reurner() {
+	int Error_code = WSAGetLastError();
+	char* Error_Message;
+	
+	FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		0, Error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&Error_Message, 0, 0);
+
+	std::cout << Error_Message << '\n';
+
+	return Error_code;
+}
+
+
+
+int initialize_wsa() {
+	WSADATA wsaData{};
+
+	//initialazation part start->
+	const int Start_up_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (Start_up_result == 0) {
+		std::cout << "initialization succsesfull!" << '\n';
+		return 0;
+	}
+	else {
+		std::cout << "error with initialization" << '\n';
+		Error_reurner(); 
+		return 1;
+	}
+	//->initialazation part end
+};
+
+int clean_up() {
+	//cleanup part start ->
+
+	const int Cleanup_result = WSACleanup();
+	if (Cleanup_result == 0) {
+		std::cout << "cleanup was succsesfull!" << '\n';
+		return 0;
+	}
+	else {
+		std::cout << "ERROR with cleanup" << '\n';
+		Error_reurner();
+		return 1;
+	}
+
+	//->cleanup part end 
+}
+
+SOCKET create_socket(int domain, int type, int protocol) {
+
+	SOCKET made_socket = socket(domain, type, protocol);
+	if (made_socket == INVALID_SOCKET) {
+		std::cout << "error with socket creation" << '\n';
+		Error_reurner();
+		return INVALID_SOCKET;
+	}
+	else {
+		std::cout << "socket " << made_socket << "  created" << '\n';
+		return made_socket;
+	}
+};
+
+int close_socket(SOCKET n) {
+	//closing sockets start
+
+	int check = closesocket(n);
+	if (check == 0) {
+		std::cout << n << "  closed" << '\n';
+	}
+	else {
+		std::cout << "ERROR with closing" << '\n';
+		Error_reurner();
+		return 1;
+	}
+
+	//closing sockets end
+}
+
+int bind_socket(SOCKET n, sockaddr_in server) {
+	int error_handling = bind(n, (SOCKADDR*)&server, sizeof(server));
+	if (error_handling == 0) {
+		std::cout << "socket " << n << " bound" << '\n';
+	}
+	else {
+		std::cout << "error with binding" << '\n';
+		Error_reurner();
+		return 1;
+	};
+}
+
+int listen_func(SOCKET n, int backlog) {
+	int check = listen(n, backlog);
+	if (check == 0) {
+		std::cout << "listen succsesful" << '\n';
+		std::cout << "waiting for connection... " << '\n';
+	}
+	else {
+		std::cout << "ERROR with listening" << '\n';
+		Error_reurner();
+		return 1;
+	};
+}
+
+SOCKET accept_func(SOCKET n, sockaddr* addr, int* addrlen) {
+	SOCKET socket_obj;
+	socket_obj = accept(n, addr, addrlen);
+	if (socket_obj == INVALID_SOCKET) {
+		std::cout << "accept failiure" << '\n';
+		Error_reurner();
+		return INVALID_SOCKET;
+	}
+	else {
+		std::cout << "accept succesfull" << '\n';
+
+		return socket_obj;
+	}
+	
+}
+
+bool is_client_connected(SOCKET client_socket) {
+	char buffer;
+	int result = recv(client_socket, &buffer, 1, MSG_PEEK);
+
+	if (result > 0) {
+		return true;  // Client is still connected
+	}
+	else if (result == 0) {
+		std::cout << "Client disconnected gracefully.\n";
+		return false;  // Client disconnected gracefully
+	}
+	else {
+		std::cout << "There was an unexpected error" << '\n';
+		Error_reurner();
+		return false;  // Network error or wrong error
+	}
+}
+
+void receive_the_message(SOCKET client_socket) {
+	char buffer[1024] = { 0 };
+	while (is_client_connected(client_socket)) {
+		
+		int message = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+		if (message > 0) {
+			std::cout << "received message: " << buffer << '\n';
+			buffer[message] = '\0';
+
+		}
+		else if (message == 0) {
+			std::cout << "client disconnected" << '\n';
+			break;
+		}
+		else {
+			std::cout << "error with network" << '\n';
+			Error_reurner();
+			break;
+		};	
+		memset(buffer, 0, 1023);
+	}
+}
+
+void sign_clean(int signal){
+	std::cout << "resived signal: " << signal << ", ending program." << '\n';
+	clean_up();
+	exit(1);
+}
+
+sockaddr_in set_server_parameters() {
+	sockaddr_in server{};
+	std::string ip;
+	int port{}, choice{};
+
+	std::cout << "for preset of ip type 1, for manual input type 2: ";
+	std::cin >> choice;
+
+	if(choice == 1){
+	ip = "0.0.0.0";
+	port = 8080;
+	}else if(choice == 2){
+	std::cout << "Enter ip for server: ";
+	std::cin >> ip;
+
+	std::cout << "Enter Port number: ";
+	std::cin >> port;
+	}
+
+	server.sin_family = AF_INET;
+	server.sin_port = htons(port);
+
+	if (inet_pton(server.sin_family, ip.c_str(), &server.sin_addr) <= 0) {
+		std::cout << "invalid IP address: " << ip << '\n';
+		exit(1);
+	}
+
+	return server;
+}
+
+//server////////////////////////////////////////////////////////////
+
+
+int main() {
+	std::signal(SIGINT, sign_clean);
+	std::signal(SIGTERM, sign_clean);
+
+	SetConsoleOutputCP(CP_UTF8);
+	
+
+	sockaddr_in server = set_server_parameters();
+
+	initialize_wsa();
+
+	
+
+	SOCKET server_1 = create_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	bind_socket(server_1, server);
+
+	listen_func(server_1, 10);
+
+	SOCKET client_socket = accept_func(server_1, 0, 0);
+
+	receive_the_message(client_socket);
+	
+	
+	closesocket(server_1);
+	clean_up();
+
+
+
+	return 0;
+}
+
+
+
+
+
